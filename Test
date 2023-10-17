@@ -1,0 +1,76 @@
+import java.io.FileInputStream;
+import java.io.IOException;
+import java.sql.Connection;
+import java.sql.DriverManager;
+import java.sql.PreparedStatement;
+import java.sql.SQLException;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
+import org.apache.poi.ss.usermodel.Cell;
+import org.apache.poi.ss.usermodel.Row;
+import org.apache.poi.xssf.usermodel.XSSFSheet;
+import org.apache.poi.xssf.usermodel.XSSFWorkbook;
+
+public class ExcelToOracle {
+
+    public static void main(String[] args) throws IOException, SQLException {
+        String excelFilePath = "C:\Users\tr927\Desktop\017 FFPL Adjustment.xlsx";
+        String sheetName = "Sheet1";
+        String oracleUrl = "https://fin1p-ebs.cummins.com/OA_HTML/RF.jsp?function_id=28804&resp_id=-1&resp_appl_id=-1&security_group_id=0&lang_code=US&oas=1TiMoUeq1HSFw5HM3EoQTw..&params=I71UGdkMxR2o1LtwfXZ0NAbQMs8.ijRUfPSNvL2dgpQ";
+        String oracleUser = "username";
+        String oraclePassword = "password";
+
+        List<Map<String, Object>> dataList = readExcelData(excelFilePath, sheetName);
+        insertDataIntoOracle(dataList, oracleUrl, oracleUser, oraclePassword);
+    }
+
+    private static List<Map<String, Object>> readExcelData(String excelFilePath, String sheetName) throws IOException {
+        List<Map<String, Object>> dataList = new ArrayList<>();
+
+        FileInputStream fileInputStream = new FileInputStream(excelFilePath);
+        XSSFWorkbook workbook = new XSSFWorkbook(fileInputStream);
+        XSSFSheet sheet = workbook.getSheet(sheetName);
+
+        int rowCount = sheet.getPhysicalNumberOfRows();
+        int colCount = 0;
+
+        for (Row row : sheet) {
+            if (row.getRowNum() == 0) {
+                colCount = row.getPhysicalNumberOfCells();
+                continue;
+            }
+
+            Map<String, Object> dataMap = new HashMap<>();
+            for (Cell cell : row) {
+                if (cell.getColumnIndex() < colCount) {
+                    dataMap.put(sheet.getRow(0).getCell(cell.getColumnIndex()).toString(), cell.toString());
+                }
+            }
+
+            dataList.add(dataMap);
+        }
+
+        fileInputStream.close();
+        workbook.close();
+
+        return dataList;
+    }
+
+    private static void insertDataIntoOracle(List<Map<String, Object>> dataList, String oracleUrl, String oracleUser, String oraclePassword) throws SQLException {
+        String sql = "INSERT INTO your_table (column1, column2, column3) VALUES (?, ?, ?)";
+
+        try (Connection connection = DriverManager.getConnection(oracleUrl, oracleUser, oraclePassword);
+             PreparedStatement preparedStatement = connection.prepareStatement(sql)) {
+
+            for (Map<String, Object> dataMap : dataList) {
+                preparedStatement.setString(1, dataMap.get("column1").toString());
+                preparedStatement.setString(2, dataMap.get("column2").toString());
+                preparedStatement.setString(3, dataMap.get("column3").toString());
+                preparedStatement.executeUpdate();
+            }
+        }
+    }
+}
